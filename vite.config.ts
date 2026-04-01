@@ -2,7 +2,8 @@ import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react-swc";
 import path from "path";
 import { componentTagger } from "lovable-tagger";
-import { VitePWA } from "vite-plugin-pwa"; // 1. Nova importação do PWA
+// 1. PWA Desativado temporariamente para não te bloquear o Cache durante o desenvolvimento
+// import { VitePWA } from "vite-plugin-pwa"; 
 
 // https://vitejs.dev/config/
 export default defineConfig(({ mode }) => ({
@@ -16,7 +17,11 @@ export default defineConfig(({ mode }) => ({
   plugins: [
     react(), 
     mode === "development" && componentTagger(),
-    // 2. Configuração do PWA adicionada aqui
+    
+    // 2. O PWA foi "comentado" (desativado). 
+    // Quando o site estiver 100% pronto e perfeito para o público, 
+    // podes voltar aqui e remover os sinais de comentário (/* e */) para o reativar.
+    /*
     VitePWA({
       registerType: 'autoUpdate', // Atualiza automaticamente quando você lança versão nova
       includeAssets: ['favicon.ico', 'apple-touch-icon.png'],
@@ -42,6 +47,7 @@ export default defineConfig(({ mode }) => ({
         ]
       }
     })
+    */
   ].filter(Boolean),
   resolve: {
     alias: {

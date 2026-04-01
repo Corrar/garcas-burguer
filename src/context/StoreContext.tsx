@@ -235,9 +235,49 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   // =========================================================
   // 6. ADMINISTRAÇÃO E ESTATÍSTICAS
   // =========================================================
-  const addProduct = useCallback((product: Omit<Product, 'id'>) => { setProducts(prev => [...prev, { ...product, id: generateId() }]); }, []);
-  const updateProduct = useCallback((id: string, updates: Partial<Product>) => { setProducts(prev => prev.map(p => p.id === id ? { ...p, ...updates } : p)); }, []);
-  const deleteProduct = useCallback((id: string) => { setProducts(prev => prev.filter(p => p.id !== id)); }, []);
+  
+  const addProduct = useCallback((product: Omit<Product, 'id'>) => { 
+    // 1. Atualiza o ecrã instantaneamente (Gera um ID provisório)
+    const tempId = generateId();
+    const newProduct = { ...product, id: tempId };
+    setProducts(prev => [...prev, newProduct]); 
+
+    // 2. Envia para o servidor para guardar na base de dados
+    fetch(`${API_URL}/products`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(product)
+    })
+    .then(res => res.json())
+    .then(savedProduct => {
+      // Quando o servidor responde, substituímos o ID provisório pelo ID real gerado pelo banco de dados
+      setProducts(prev => prev.map(p => p.id === tempId ? savedProduct : p));
+    })
+    .catch(err => console.error("Erro ao salvar produto no servidor:", err));
+  }, []);
+
+  const updateProduct = useCallback((id: string, updates: Partial<Product>) => { 
+    // 1. Atualiza o ecrã instantaneamente
+    setProducts(prev => prev.map(p => p.id === id ? { ...p, ...updates } : p)); 
+    
+    // 2. Atualiza no servidor
+    fetch(`${API_URL}/products/${id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(updates)
+    }).catch(err => console.error("Erro ao atualizar produto no servidor:", err));
+  }, []);
+
+  const deleteProduct = useCallback((id: string) => { 
+    // 1. Remove do ecrã instantaneamente
+    setProducts(prev => prev.filter(p => p.id !== id)); 
+    
+    // 2. Apaga no servidor
+    fetch(`${API_URL}/products/${id}`, {
+      method: 'DELETE'
+    }).catch(err => console.error("Erro ao apagar produto no servidor:", err));
+  }, []);
+
   const updateSettings = useCallback((newSettings: Partial<StoreSettings>) => { setSettings(prev => ({ ...prev, ...newSettings })); }, []);
 
   const getTodayOrders = useCallback(() => {

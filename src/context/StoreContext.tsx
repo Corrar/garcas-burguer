@@ -114,10 +114,11 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   useEffect(() => {
     const carregarDadosDoBanco = async () => {
       try {
+        // CORREÇÃO FINAL: Forçar o navegador a nunca usar ficheiros "velhos" do cache
         const [prodRes, ordRes, setRes] = await Promise.all([
-          fetch(`${API_URL}/products`),
-          fetch(`${API_URL}/orders`),
-          fetch(`${API_URL}/settings`)
+          fetch(`${API_URL}/products`, { cache: 'no-store' }),
+          fetch(`${API_URL}/orders`, { cache: 'no-store' }),
+          fetch(`${API_URL}/settings`, { cache: 'no-store' })
         ]);
         
         if (prodRes.ok) setProducts(await prodRes.json());
@@ -176,11 +177,11 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     if (!orderType) throw new Error("Tipo de pedido não definido");
     
     const subtotal = getCartTotal();
-    const tempId = generateId();
+    const tempId = generateId(); 
     
     const order: Order = {
       id: tempId,
-      number: nextOrderNumber,
+      number: nextOrderNumber, 
       orderType,
       tableNumber: tableNumber || undefined,
       deliveryAddress: deliveryAddress || undefined,
@@ -197,9 +198,11 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       updatedAt: new Date(),
     };
 
+    // 1. Atualiza o ecrã instantaneamente com o pedido provisório
     setOrders(prev => [order, ...prev]);
     setCart([]);
 
+    // 2. Dispara o salvamento no Servidor
     fetch(`${API_URL}/orders`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -211,6 +214,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       return data;
     })
     .then(savedOrder => {
+      // Substituímos o pedido temporário pelo pedido oficial
       setOrders(prev => prev.map(o => o.id === tempId ? {
         ...savedOrder, 
         createdAt: new Date(savedOrder.createdAt), 

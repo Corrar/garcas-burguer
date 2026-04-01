@@ -10,15 +10,14 @@ const PORT = process.env.PORT || 3001;
 const prisma = new PrismaClient();
 
 // =========================================================
-// --- CONFIGURAÇÃO DE SEGURANÇA CORS (CORRIGIDA) ---
+// --- CONFIGURAÇÃO DE SEGURANÇA CORS (UNIVERSAL) ---
 // =========================================================
 const corsOptions = {
-  origin: [
-    'http://localhost:5173', 
-    'http://127.0.0.1:5173',
-    'https://garca-burguer.vercel.app' // 👈 O TEU LINK DA VERCEL
-  ], 
-  methods: ['GET', 'POST', 'PATCH', 'DELETE'], 
+  origin: function (origin, callback) {
+    // Aceita qualquer origem (Vercel, localhost, etc) para evitar bloqueios silenciosos
+    callback(null, true); 
+  }, 
+  methods: ['GET', 'POST', 'PATCH', 'DELETE', 'OPTIONS'], 
   allowedHeaders: ['Content-Type'], 
   credentials: true 
 };
@@ -36,7 +35,7 @@ app.get('/api/health', async (req, res) => {
     await prisma.$queryRaw`SELECT 1`;
     res.json({ status: 'ok', message: '🍔 Servidor ON e ligado ao NeonDB!' });
   } catch (error) {
-    res.status(500).json({ status: 'error', message: 'Falha ao ligar à Base de Dados.' });
+    res.status(500).json({ status: 'error', message: 'Falha ao ligar à Base de Dados.', details: error.message });
   }
 });
 
@@ -49,7 +48,7 @@ app.get('/api/products', async (req, res) => {
     const products = await prisma.product.findMany({ where: { active: true } });
     res.json(products);
   } catch (error) {
-    res.status(500).json({ error: 'Erro ao procurar produtos' });
+    res.status(500).json({ error: 'Erro ao procurar produtos', details: error.message });
   }
 });
 
@@ -73,7 +72,8 @@ app.post('/api/products', async (req, res) => {
     res.status(201).json(newProduct);
   } catch (error) {
     console.error("🔥 ERRO FATAL AO CRIAR PRODUTO:", error);
-    res.status(500).json({ error: 'Erro interno ao criar produto' });
+    // O detalhe do erro agora é enviado de volta ao frontend!
+    res.status(500).json({ error: 'Erro interno ao criar produto', details: error.message });
   }
 });
 
@@ -100,7 +100,7 @@ app.patch('/api/products/:id', async (req, res) => {
     res.json(updatedProduct);
   } catch (error) {
     console.error("🔥 ERRO FATAL AO ATUALIZAR PRODUTO:", error);
-    res.status(500).json({ error: 'Erro ao atualizar produto' });
+    res.status(500).json({ error: 'Erro ao atualizar produto', details: error.message });
   }
 });
 
@@ -113,7 +113,7 @@ app.delete('/api/products/:id', async (req, res) => {
     });
     res.json({ message: 'Produto removido com sucesso' });
   } catch (error) {
-    res.status(500).json({ error: 'Erro ao apagar produto' });
+    res.status(500).json({ error: 'Erro ao apagar produto', details: error.message });
   }
 });
 
@@ -126,7 +126,7 @@ app.get('/api/orders', async (req, res) => {
     const orders = await prisma.order.findMany({ orderBy: { createdAt: 'desc' } });
     res.json(orders);
   } catch (error) {
-    res.status(500).json({ error: 'Erro ao buscar pedidos' });
+    res.status(500).json({ error: 'Erro ao buscar pedidos', details: error.message });
   }
 });
 
@@ -135,7 +135,7 @@ app.get('/api/settings', async (req, res) => {
     const settings = await prisma.storeSettings.findUnique({ where: { id: 'singleton' } });
     res.json(settings);
   } catch (error) {
-    res.status(500).json({ error: 'Erro ao buscar configurações' });
+    res.status(500).json({ error: 'Erro ao buscar configurações', details: error.message });
   }
 });
 
@@ -165,7 +165,7 @@ app.post('/api/orders', async (req, res) => {
     res.status(201).json(newOrder);
   } catch (error) {
     console.error("Erro ao criar pedido:", error);
-    res.status(500).json({ error: 'Erro interno ao criar pedido' });
+    res.status(500).json({ error: 'Erro interno ao criar pedido', details: error.message });
   }
 });
 
@@ -180,7 +180,7 @@ app.patch('/api/orders/:id/status', async (req, res) => {
     });
     res.json(updatedOrder);
   } catch (error) {
-    res.status(500).json({ error: 'Erro ao atualizar status' });
+    res.status(500).json({ error: 'Erro ao atualizar status', details: error.message });
   }
 });
 
@@ -195,7 +195,7 @@ app.patch('/api/orders/:id/payment', async (req, res) => {
     });
     res.json(updatedOrder);
   } catch (error) {
-    res.status(500).json({ error: 'Erro ao confirmar pagamento' });
+    res.status(500).json({ error: 'Erro ao confirmar pagamento', details: error.message });
   }
 });
 
@@ -208,7 +208,7 @@ app.get('/api/banners', async (req, res) => {
     const banners = await prisma.promoBanner.findMany();
     res.json(banners);
   } catch (error) {
-    res.status(500).json({ error: 'Erro ao buscar banners' });
+    res.status(500).json({ error: 'Erro ao buscar banners', details: error.message });
   }
 });
 
@@ -219,7 +219,7 @@ app.post('/api/banners', async (req, res) => {
     });
     res.status(201).json(newBanner);
   } catch (error) {
-    res.status(500).json({ error: 'Erro ao criar banner' });
+    res.status(500).json({ error: 'Erro ao criar banner', details: error.message });
   }
 });
 
@@ -232,7 +232,7 @@ app.patch('/api/banners/:id', async (req, res) => {
     });
     res.json(updatedBanner);
   } catch (error) {
-    res.status(500).json({ error: 'Erro ao atualizar banner' });
+    res.status(500).json({ error: 'Erro ao atualizar banner', details: error.message });
   }
 });
 
@@ -244,7 +244,7 @@ app.delete('/api/banners/:id', async (req, res) => {
     });
     res.json({ message: 'Banner removido com sucesso' });
   } catch (error) {
-    res.status(500).json({ error: 'Erro ao apagar banner' });
+    res.status(500).json({ error: 'Erro ao apagar banner', details: error.message });
   }
 });
 

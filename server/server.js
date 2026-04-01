@@ -13,16 +13,17 @@ const prisma = new PrismaClient();
 // --- CONFIGURAÇÃO DE SEGURANÇA CORS (CORRIGIDA) ---
 // =========================================================
 const corsOptions = {
-  // Permite pedidos do teu frontend local
-  origin: ['http://localhost:5173', 'http://127.0.0.1:5173'], 
-  
-  // CRÍTICO: Adicionado 'DELETE' para permitir apagar produtos
+  origin: [
+    'http://localhost:5173', 
+    'http://127.0.0.1:5173',
+    'https://garca-burguer.vercel.app' // 👈 O TEU LINK DA VERCEL
+  ], 
   methods: ['GET', 'POST', 'PATCH', 'DELETE'], 
-  
   allowedHeaders: ['Content-Type'], 
   credentials: true 
 };
 
+// ATENÇÃO: Estes dois devem vir sempre ANTES de qualquer rota!
 app.use(cors(corsOptions));
 app.use(express.json());
 
@@ -182,6 +183,55 @@ app.patch('/api/orders/:id/payment', async (req, res) => {
     res.json(updatedOrder);
   } catch (error) {
     res.status(500).json({ error: 'Erro ao confirmar pagamento' });
+  }
+});
+
+// =========================================================
+// --- ROTAS DE BANNERS PROMOCIONAIS ---
+// =========================================================
+
+app.get('/api/banners', async (req, res) => {
+  try {
+    const banners = await prisma.promoBanner.findMany();
+    res.json(banners);
+  } catch (error) {
+    res.status(500).json({ error: 'Erro ao buscar banners' });
+  }
+});
+
+app.post('/api/banners', async (req, res) => {
+  try {
+    const newBanner = await prisma.promoBanner.create({
+      data: req.body
+    });
+    res.status(201).json(newBanner);
+  } catch (error) {
+    res.status(500).json({ error: 'Erro ao criar banner' });
+  }
+});
+
+app.patch('/api/banners/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const updatedBanner = await prisma.promoBanner.update({
+      where: { id },
+      data: req.body
+    });
+    res.json(updatedBanner);
+  } catch (error) {
+    res.status(500).json({ error: 'Erro ao atualizar banner' });
+  }
+});
+
+app.delete('/api/banners/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    await prisma.promoBanner.delete({
+      where: { id }
+    });
+    res.json({ message: 'Banner removido com sucesso' });
+  } catch (error) {
+    res.status(500).json({ error: 'Erro ao apagar banner' });
   }
 });
 

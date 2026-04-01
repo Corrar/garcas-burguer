@@ -53,40 +53,53 @@ app.get('/api/products', async (req, res) => {
   }
 });
 
-// 1. Criar um NOVO produto (Admin)
+// 1. Criar um NOVO produto (BLINDADO)
 app.post('/api/products', async (req, res) => {
   try {
     const data = req.body;
     const newProduct = await prisma.product.create({
       data: {
-        name: data.name,
-        description: data.description,
-        price: data.price,
-        category: data.category,
-        image: data.image || '',
-        popular: data.popular || false,
-        customizations: data.customizations || [],
+        name: String(data.name || 'Produto Sem Nome'),
+        description: String(data.description || ''),
+        // Força a conversão do preço para número, quer venha como texto ou vazio
+        price: Number(data.price) || 0,
+        category: String(data.category || 'burgers'),
+        image: String(data.image || ''),
+        popular: Boolean(data.popular),
+        customizations: Array.isArray(data.customizations) ? data.customizations : [],
         active: true 
       }
     });
     res.status(201).json(newProduct);
   } catch (error) {
-    console.error("Erro ao criar produto:", error);
+    console.error("🔥 ERRO FATAL AO CRIAR PRODUTO:", error);
     res.status(500).json({ error: 'Erro interno ao criar produto' });
   }
 });
 
-// 2. Atualizar um produto existente (Admin)
+// 2. Atualizar um produto existente (BLINDADO)
 app.patch('/api/products/:id', async (req, res) => {
   try {
     const { id } = req.params;
     const data = req.body;
+    
+    // Filtramos apenas o que vem no pedido para atualizar e forçamos o tipo correto
+    const updateData = {};
+    if (data.name !== undefined) updateData.name = String(data.name);
+    if (data.description !== undefined) updateData.description = String(data.description);
+    if (data.price !== undefined) updateData.price = Number(data.price);
+    if (data.category !== undefined) updateData.category = String(data.category);
+    if (data.image !== undefined) updateData.image = String(data.image);
+    if (data.popular !== undefined) updateData.popular = Boolean(data.popular);
+    if (data.customizations !== undefined) updateData.customizations = Array.isArray(data.customizations) ? data.customizations : [];
+
     const updatedProduct = await prisma.product.update({
       where: { id: id },
-      data: data
+      data: updateData
     });
     res.json(updatedProduct);
   } catch (error) {
+    console.error("🔥 ERRO FATAL AO ATUALIZAR PRODUTO:", error);
     res.status(500).json({ error: 'Erro ao atualizar produto' });
   }
 });

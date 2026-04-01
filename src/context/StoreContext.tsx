@@ -114,9 +114,10 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   useEffect(() => {
     const carregarDadosDoBanco = async () => {
       try {
+        // CORREÇÃO AQUI: Mudámos '/orders/today' para '/orders' para bater certo com o backend
         const [prodRes, ordRes] = await Promise.all([
           fetch(`${API_URL}/products`),
-          fetch(`${API_URL}/orders/today`)
+          fetch(`${API_URL}/orders`)
         ]);
         
         if (prodRes.ok) setProducts(await prodRes.json());

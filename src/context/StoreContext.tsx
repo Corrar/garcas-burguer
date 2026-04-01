@@ -114,7 +114,6 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   useEffect(() => {
     const carregarDadosDoBanco = async () => {
       try {
-        // CORREÇÃO: Buscamos Produtos, Pedidos E Configurações
         const [prodRes, ordRes, setRes] = await Promise.all([
           fetch(`${API_URL}/products`),
           fetch(`${API_URL}/orders`),
@@ -132,7 +131,6 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           })));
         }
 
-        // CORREÇÃO: Atualiza as configurações da loja caso o servidor responda
         if (setRes.ok) {
           const fetchedSettings = await setRes.json();
           if (fetchedSettings) setSettings(fetchedSettings);
@@ -178,11 +176,11 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     if (!orderType) throw new Error("Tipo de pedido não definido");
     
     const subtotal = getCartTotal();
-    const tempId = generateId(); // CORREÇÃO: Guardamos o ID provisório
+    const tempId = generateId();
     
     const order: Order = {
       id: tempId,
-      number: nextOrderNumber, // Provisório
+      number: nextOrderNumber,
       orderType,
       tableNumber: tableNumber || undefined,
       deliveryAddress: deliveryAddress || undefined,
@@ -199,34 +197,36 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       updatedAt: new Date(),
     };
 
-    // 1. Atualiza o ecrã instantaneamente com o pedido provisório
     setOrders(prev => [order, ...prev]);
     setCart([]);
 
-    // 2. Dispara o salvamento no Servidor
     fetch(`${API_URL}/orders`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(order)
     })
-    .then(res => res.json())
+    .then(async res => {
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.details || data.error || 'Erro ao salvar pedido');
+      return data;
+    })
     .then(savedOrder => {
-      // CORREÇÃO: Substituímos o pedido temporário pelo pedido oficial com o ID gerado pela base de dados
       setOrders(prev => prev.map(o => o.id === tempId ? {
         ...savedOrder, 
         createdAt: new Date(savedOrder.createdAt), 
         updatedAt: new Date(savedOrder.updatedAt)
       } : o));
     })
-    .catch(err => console.error("Erro ao salvar pedido na API:", err));
+    .catch(err => {
+      console.error("Erro ao salvar pedido na API:", err);
+      alert("⚠️ Falha ao enviar pedido!\n\n" + err.message);
+    });
 
     return order;
   }, [cart, nextOrderNumber, orderType, tableNumber, deliveryAddress, getCartTotal]);
 
   const updateOrderStatus = useCallback((orderId: string, status: OrderStatus) => {
-    // 1. Atualiza ecrã
     setOrders(prev => prev.map(o => o.id === orderId ? { ...o, status, updatedAt: new Date() } : o));
-    // 2. Atualiza Servidor
     fetch(`${API_URL}/orders/${orderId}/status`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
@@ -235,9 +235,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   }, []);
 
   const updatePaymentStatus = useCallback((orderId: string, paymentStatus: PaymentStatus) => {
-    // 1. Atualiza ecrã
     setOrders(prev => prev.map(o => o.id === orderId ? { ...o, paymentStatus, updatedAt: new Date() } : o));
-    // 2. Atualiza Servidor
     fetch(`${API_URL}/orders/${orderId}/payment`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
@@ -254,49 +252,71 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
 
   // =========================================================
-  // 6. ADMINISTRAÇÃO E ESTATÍSTICAS
+  // 6. ADMINISTRAÇÃO E ESTATÍSTICAS (COM SISTEMA DE ALARME)
   // =========================================================
   
   const addProduct = useCallback((product: Omit<Product, 'id'>) => { 
-    // 1. Atualiza o ecrã instantaneamente (Gera um ID provisório)
+    // 1. Atualiza o ecrã instantaneamente
     const tempId = generateId();
     const newProduct = { ...product, id: tempId };
     setProducts(prev => [...prev, newProduct]); 
 
-    // 2. Envia para o servidor para guardar na base de dados
+    // 2. Envia para o servidor
     fetch(`${API_URL}/products`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(product)
     })
-    .then(res => res.json())
+    .then(async res => {
+      const data = await res.json();
+      // Se não for OK (ex: 500 ou 400), dispara o nosso alarme com o motivo exato
+      if (!res.ok) throw new Error(data.details || data.error || 'Falha ao salvar');
+      return data;
+    })
     .then(savedProduct => {
-      // Quando o servidor responde, substituímos o ID provisório pelo ID real gerado pelo banco de dados
+      // Substitui o ID falso pelo verdadeiro
       setProducts(prev => prev.map(p => p.id === tempId ? savedProduct : p));
     })
-    .catch(err => console.error("Erro ao salvar produto no servidor:", err));
+    .catch(err => {
+      console.error("Erro ao salvar produto:", err);
+      alert("⚠️ ERRO DO BANCO DE DADOS:\n\n" + err.message);
+      // REVERTE O ECRÃ: Tira o produto falso porque não foi salvo!
+      setProducts(prev => prev.filter(p => p.id !== tempId)); 
+    });
   }, []);
 
   const updateProduct = useCallback((id: string, updates: Partial<Product>) => { 
-    // 1. Atualiza o ecrã instantaneamente
     setProducts(prev => prev.map(p => p.id === id ? { ...p, ...updates } : p)); 
     
-    // 2. Atualiza no servidor
     fetch(`${API_URL}/products/${id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(updates)
-    }).catch(err => console.error("Erro ao atualizar produto no servidor:", err));
+    })
+    .then(async res => {
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.details || data.error || 'Falha ao atualizar');
+    })
+    .catch(err => {
+      console.error("Erro ao atualizar produto no servidor:", err);
+      alert("⚠️ ERRO AO ATUALIZAR:\n\n" + err.message);
+    });
   }, []);
 
   const deleteProduct = useCallback((id: string) => { 
-    // 1. Remove do ecrã instantaneamente
     setProducts(prev => prev.filter(p => p.id !== id)); 
     
-    // 2. Apaga no servidor
     fetch(`${API_URL}/products/${id}`, {
       method: 'DELETE'
-    }).catch(err => console.error("Erro ao apagar produto no servidor:", err));
+    })
+    .then(async res => {
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.details || data.error || 'Falha ao apagar');
+    })
+    .catch(err => {
+      console.error("Erro ao apagar produto no servidor:", err);
+      alert("⚠️ ERRO AO APAGAR:\n\n" + err.message);
+    });
   }, []);
 
   const updateSettings = useCallback((newSettings: Partial<StoreSettings>) => { setSettings(prev => ({ ...prev, ...newSettings })); }, []);

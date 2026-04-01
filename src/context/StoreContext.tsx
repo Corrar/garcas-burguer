@@ -114,13 +114,15 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   useEffect(() => {
     const carregarDadosDoBanco = async () => {
       try {
-        // CORREÇÃO AQUI: Mudámos '/orders/today' para '/orders' para bater certo com o backend
-        const [prodRes, ordRes] = await Promise.all([
+        // CORREÇÃO: Buscamos Produtos, Pedidos E Configurações
+        const [prodRes, ordRes, setRes] = await Promise.all([
           fetch(`${API_URL}/products`),
-          fetch(`${API_URL}/orders`)
+          fetch(`${API_URL}/orders`),
+          fetch(`${API_URL}/settings`)
         ]);
         
         if (prodRes.ok) setProducts(await prodRes.json());
+        
         if (ordRes.ok) {
           const fetchedOrders = await ordRes.json();
           setOrders(fetchedOrders.map((o: any) => ({ 
@@ -128,6 +130,12 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             createdAt: new Date(o.createdAt), 
             updatedAt: new Date(o.updatedAt) 
           })));
+        }
+
+        // CORREÇÃO: Atualiza as configurações da loja caso o servidor responda
+        if (setRes.ok) {
+          const fetchedSettings = await setRes.json();
+          if (fetchedSettings) setSettings(fetchedSettings);
         }
       } catch (error) {
         console.error("Falha ao ligar ao servidor API:", error);
@@ -170,9 +178,11 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     if (!orderType) throw new Error("Tipo de pedido não definido");
     
     const subtotal = getCartTotal();
+    const tempId = generateId(); // CORREÇÃO: Guardamos o ID provisório
+    
     const order: Order = {
-      id: generateId(),
-      number: nextOrderNumber,
+      id: tempId,
+      number: nextOrderNumber, // Provisório
       orderType,
       tableNumber: tableNumber || undefined,
       deliveryAddress: deliveryAddress || undefined,
@@ -182,14 +192,14 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       total: subtotal + deliveryFee,
       status: 'pending',
       paymentMethod,
-      paymentStatus: 'pending', // Sempre começa pendente
+      paymentStatus: 'pending',
       changeFor,
       customerNotes,
       createdAt: new Date(),
       updatedAt: new Date(),
     };
 
-    // 1. Atualiza o ecrã instantaneamente
+    // 1. Atualiza o ecrã instantaneamente com o pedido provisório
     setOrders(prev => [order, ...prev]);
     setCart([]);
 
@@ -198,7 +208,17 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(order)
-    }).catch(err => console.error("Erro ao salvar pedido na API:", err));
+    })
+    .then(res => res.json())
+    .then(savedOrder => {
+      // CORREÇÃO: Substituímos o pedido temporário pelo pedido oficial com o ID gerado pela base de dados
+      setOrders(prev => prev.map(o => o.id === tempId ? {
+        ...savedOrder, 
+        createdAt: new Date(savedOrder.createdAt), 
+        updatedAt: new Date(savedOrder.updatedAt)
+      } : o));
+    })
+    .catch(err => console.error("Erro ao salvar pedido na API:", err));
 
     return order;
   }, [cart, nextOrderNumber, orderType, tableNumber, deliveryAddress, getCartTotal]);

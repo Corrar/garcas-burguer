@@ -105,7 +105,6 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     return saved ? JSON.parse(saved) : null;
   });
 
-  // O número do pedido agora é calculado com base na API
   const nextOrderNumber = orders.length > 0 ? Math.max(...orders.map(o => o.number)) + 1 : 1;
 
   // =========================================================
@@ -114,11 +113,12 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   useEffect(() => {
     const carregarDadosDoBanco = async () => {
       try {
-        // CORREÇÃO FINAL: Forçar o navegador a nunca usar ficheiros "velhos" do cache
-        const [prodRes, ordRes, setRes] = await Promise.all([
+        // CORREÇÃO: Lemos Produtos, Pedidos, Settings E BANNERS (com no-store)
+        const [prodRes, ordRes, setRes, banRes] = await Promise.all([
           fetch(`${API_URL}/products`, { cache: 'no-store' }),
           fetch(`${API_URL}/orders`, { cache: 'no-store' }),
-          fetch(`${API_URL}/settings`, { cache: 'no-store' })
+          fetch(`${API_URL}/settings`, { cache: 'no-store' }),
+          fetch(`${API_URL}/banners`, { cache: 'no-store' }) // Adicionado
         ]);
         
         if (prodRes.ok) setProducts(await prodRes.json());
@@ -136,6 +136,10 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           const fetchedSettings = await setRes.json();
           if (fetchedSettings) setSettings(fetchedSettings);
         }
+
+        if (banRes.ok) {
+          setPromoBanners(await banRes.json()); // Lê os banners da DB
+        }
       } catch (error) {
         console.error("Falha ao ligar ao servidor API:", error);
       }
@@ -152,7 +156,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
 
   // =========================================================
-  // 4. FUNÇÕES DO CARRINHO (NÃO MEXEM NA BASE DE DADOS AINDA)
+  // 4. FUNÇÕES DO CARRINHO
   // =========================================================
   const addToCart = useCallback((product: Product, removals: string[] = [], additions: { name: string; price: number }[] = [], notes = '') => {
     const item: OrderItem = { id: generateId(), product, quantity: 1, removals, additions, notes, unitPrice: product.price };
@@ -198,11 +202,9 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       updatedAt: new Date(),
     };
 
-    // 1. Atualiza o ecrã instantaneamente com o pedido provisório
     setOrders(prev => [order, ...prev]);
     setCart([]);
 
-    // 2. Dispara o salvamento no Servidor
     fetch(`${API_URL}/orders`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -214,7 +216,6 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       return data;
     })
     .then(savedOrder => {
-      // Substituímos o pedido temporário pelo pedido oficial
       setOrders(prev => prev.map(o => o.id === tempId ? {
         ...savedOrder, 
         createdAt: new Date(savedOrder.createdAt), 
@@ -232,59 +233,47 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const updateOrderStatus = useCallback((orderId: string, status: OrderStatus) => {
     setOrders(prev => prev.map(o => o.id === orderId ? { ...o, status, updatedAt: new Date() } : o));
     fetch(`${API_URL}/orders/${orderId}/status`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ status })
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status })
     }).catch(err => console.error(err));
   }, []);
 
   const updatePaymentStatus = useCallback((orderId: string, paymentStatus: PaymentStatus) => {
     setOrders(prev => prev.map(o => o.id === orderId ? { ...o, paymentStatus, updatedAt: new Date() } : o));
     fetch(`${API_URL}/orders/${orderId}/payment`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ paymentStatus })
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ paymentStatus })
     }).catch(err => console.error(err));
   }, []);
 
   const rateOrder = useCallback((orderId: string, ratings: Record<string, number>, feedback: string) => {
     setOrders(prev => prev.map(o => o.id === orderId ? {
-      ...o,
-      rating: { aspects: ratings, feedback, createdAt: new Date().toISOString() }
+      ...o, rating: { aspects: ratings, feedback, createdAt: new Date().toISOString() }
     } : o));
   }, []);
 
 
   // =========================================================
-  // 6. ADMINISTRAÇÃO E ESTATÍSTICAS (COM SISTEMA DE ALARME)
+  // 6. ADMINISTRAÇÃO E ESTATÍSTICAS (PRODUTOS E BANNERS)
   // =========================================================
   
   const addProduct = useCallback((product: Omit<Product, 'id'>) => { 
-    // 1. Atualiza o ecrã instantaneamente
     const tempId = generateId();
     const newProduct = { ...product, id: tempId };
     setProducts(prev => [...prev, newProduct]); 
 
-    // 2. Envia para o servidor
     fetch(`${API_URL}/products`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(product)
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(product)
     })
     .then(async res => {
       const data = await res.json();
-      // Se não for OK (ex: 500 ou 400), dispara o nosso alarme com o motivo exato
       if (!res.ok) throw new Error(data.details || data.error || 'Falha ao salvar');
       return data;
     })
     .then(savedProduct => {
-      // Substitui o ID falso pelo verdadeiro
       setProducts(prev => prev.map(p => p.id === tempId ? savedProduct : p));
     })
     .catch(err => {
       console.error("Erro ao salvar produto:", err);
       alert("⚠️ ERRO DO BANCO DE DADOS:\n\n" + err.message);
-      // REVERTE O ECRÃ: Tira o produto falso porque não foi salvo!
       setProducts(prev => prev.filter(p => p.id !== tempId)); 
     });
   }, []);
@@ -293,9 +282,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     setProducts(prev => prev.map(p => p.id === id ? { ...p, ...updates } : p)); 
     
     fetch(`${API_URL}/products/${id}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(updates)
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(updates)
     })
     .then(async res => {
       const data = await res.json();
@@ -310,9 +297,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const deleteProduct = useCallback((id: string) => { 
     setProducts(prev => prev.filter(p => p.id !== id)); 
     
-    fetch(`${API_URL}/products/${id}`, {
-      method: 'DELETE'
-    })
+    fetch(`${API_URL}/products/${id}`, { method: 'DELETE' })
     .then(async res => {
       const data = await res.json();
       if (!res.ok) throw new Error(data.details || data.error || 'Falha ao apagar');
@@ -321,6 +306,25 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       console.error("Erro ao apagar produto no servidor:", err);
       alert("⚠️ ERRO AO APAGAR:\n\n" + err.message);
     });
+  }, []);
+
+  // --- Funções dos Banners Corrigidas (Comunicação com a API) ---
+  const addPromoBanner = useCallback((banner: Omit<PromoBanner, 'id'>) => {
+    const tempId = generateId();
+    setPromoBanners(prev => [...prev, { ...banner, id: tempId }]);
+    fetch(`${API_URL}/banners`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(banner) })
+    .then(res => res.json()).then(savedBanner => { setPromoBanners(prev => prev.map(b => b.id === tempId ? savedBanner : b)); })
+    .catch(err => console.error(err));
+  }, []);
+
+  const updatePromoBanner = useCallback((id: string, updates: Partial<PromoBanner>) => {
+    setPromoBanners(prev => prev.map(b => b.id === id ? { ...b, ...updates } : b));
+    fetch(`${API_URL}/banners/${id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(updates) }).catch(err => console.error(err));
+  }, []);
+
+  const removePromoBanner = useCallback((id: string) => {
+    setPromoBanners(prev => prev.filter(b => b.id !== id));
+    fetch(`${API_URL}/banners/${id}`, { method: 'DELETE' }).catch(err => console.error(err));
   }, []);
 
   const updateSettings = useCallback((newSettings: Partial<StoreSettings>) => { setSettings(prev => ({ ...prev, ...newSettings })); }, []);
@@ -332,7 +336,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   const getTodayRevenue = useCallback(() => {
     return getTodayOrders()
-      .filter(o => o.paymentStatus === 'paid') // Só conta dinheiro que realmente entrou
+      .filter(o => o.paymentStatus === 'paid')
       .reduce((sum, o) => sum + o.total, 0);
   }, [getTodayOrders]);
 
@@ -355,9 +359,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       addToCart, removeFromCart, updateCartItem, clearCart,
       placeOrder, updateOrderStatus, updatePaymentStatus, rateOrder,
       addProduct, updateProduct, deleteProduct, updateSettings,
-      addPromoBanner: (b) => setPromoBanners(prev => [...prev, { ...b, id: generateId() }]),
-      updatePromoBanner: (id, u) => setPromoBanners(prev => prev.map(b => b.id === id ? { ...b, ...u } : b)),
-      removePromoBanner: (id) => setPromoBanners(prev => prev.filter(b => b.id !== id)),
+      addPromoBanner, updatePromoBanner, removePromoBanner,
       getCartTotal, getTodayOrders, getTodayRevenue, getPopularProducts,
     }}>
       {children}

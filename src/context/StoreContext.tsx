@@ -113,12 +113,11 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   useEffect(() => {
     const carregarDadosDoBanco = async () => {
       try {
-        // CORREÇÃO: Lemos Produtos, Pedidos, Settings E BANNERS (com no-store)
         const [prodRes, ordRes, setRes, banRes] = await Promise.all([
           fetch(`${API_URL}/products`, { cache: 'no-store' }),
           fetch(`${API_URL}/orders`, { cache: 'no-store' }),
           fetch(`${API_URL}/settings`, { cache: 'no-store' }),
-          fetch(`${API_URL}/banners`, { cache: 'no-store' }) // Adicionado
+          fetch(`${API_URL}/banners`, { cache: 'no-store' }) 
         ]);
         
         if (prodRes.ok) setProducts(await prodRes.json());
@@ -138,7 +137,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         }
 
         if (banRes.ok) {
-          setPromoBanners(await banRes.json()); // Lê os banners da DB
+          setPromoBanners(await banRes.json()); 
         }
       } catch (error) {
         console.error("Falha ao ligar ao servidor API:", error);
@@ -255,13 +254,23 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   // 6. ADMINISTRAÇÃO E ESTATÍSTICAS (PRODUTOS E BANNERS)
   // =========================================================
   
+  // 💡 FUNÇÃO AUXILIAR: Pega o Token do Admin
+  const getAdminToken = () => {
+    return localStorage.getItem('@burger-buddy:adminToken') || import.meta.env.VITE_ADMIN_TOKEN || '';
+  };
+
   const addProduct = useCallback((product: Omit<Product, 'id'>) => { 
     const tempId = generateId();
     const newProduct = { ...product, id: tempId };
     setProducts(prev => [...prev, newProduct]); 
 
     fetch(`${API_URL}/products`, {
-      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(product)
+      method: 'POST', 
+      headers: { 
+        'Content-Type': 'application/json',
+        'x-admin-token': getAdminToken() 
+      }, 
+      body: JSON.stringify(product)
     })
     .then(async res => {
       const data = await res.json();
@@ -282,7 +291,12 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     setProducts(prev => prev.map(p => p.id === id ? { ...p, ...updates } : p)); 
     
     fetch(`${API_URL}/products/${id}`, {
-      method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(updates)
+      method: 'PATCH', 
+      headers: { 
+        'Content-Type': 'application/json',
+        'x-admin-token': getAdminToken() 
+      }, 
+      body: JSON.stringify(updates)
     })
     .then(async res => {
       const data = await res.json();
@@ -297,7 +311,12 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const deleteProduct = useCallback((id: string) => { 
     setProducts(prev => prev.filter(p => p.id !== id)); 
     
-    fetch(`${API_URL}/products/${id}`, { method: 'DELETE' })
+    fetch(`${API_URL}/products/${id}`, { 
+      method: 'DELETE',
+      headers: {
+        'x-admin-token': getAdminToken()
+      }
+    })
     .then(async res => {
       const data = await res.json();
       if (!res.ok) throw new Error(data.details || data.error || 'Falha ao apagar');
@@ -308,23 +327,34 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     });
   }, []);
 
-  // --- Funções dos Banners Corrigidas (Comunicação com a API) ---
+  // --- Funções dos Banners Atualizadas ---
   const addPromoBanner = useCallback((banner: Omit<PromoBanner, 'id'>) => {
     const tempId = generateId();
     setPromoBanners(prev => [...prev, { ...banner, id: tempId }]);
-    fetch(`${API_URL}/banners`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(banner) })
+    fetch(`${API_URL}/banners`, { 
+      method: 'POST', 
+      headers: { 'Content-Type': 'application/json', 'x-admin-token': getAdminToken() }, 
+      body: JSON.stringify(banner) 
+    })
     .then(res => res.json()).then(savedBanner => { setPromoBanners(prev => prev.map(b => b.id === tempId ? savedBanner : b)); })
     .catch(err => console.error(err));
   }, []);
 
   const updatePromoBanner = useCallback((id: string, updates: Partial<PromoBanner>) => {
     setPromoBanners(prev => prev.map(b => b.id === id ? { ...b, ...updates } : b));
-    fetch(`${API_URL}/banners/${id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(updates) }).catch(err => console.error(err));
+    fetch(`${API_URL}/banners/${id}`, { 
+      method: 'PATCH', 
+      headers: { 'Content-Type': 'application/json', 'x-admin-token': getAdminToken() }, 
+      body: JSON.stringify(updates) 
+    }).catch(err => console.error(err));
   }, []);
 
   const removePromoBanner = useCallback((id: string) => {
     setPromoBanners(prev => prev.filter(b => b.id !== id));
-    fetch(`${API_URL}/banners/${id}`, { method: 'DELETE' }).catch(err => console.error(err));
+    fetch(`${API_URL}/banners/${id}`, { 
+      method: 'DELETE',
+      headers: { 'x-admin-token': getAdminToken() }
+    }).catch(err => console.error(err));
   }, []);
 
   const updateSettings = useCallback((newSettings: Partial<StoreSettings>) => { setSettings(prev => ({ ...prev, ...newSettings })); }, []);

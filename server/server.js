@@ -165,7 +165,7 @@ app.patch('/api/settings', protectAdmin, async (req, res) => {
 // --- ROTAS DE PEDIDOS ---
 // =========================================================
 
-// LER Pedidos (Idealmente seria protegido para o Admin/Cozinha, mas mantemos aberto se já estava assim no teu design)
+// LER Pedidos
 app.get('/api/orders', async (req, res) => {
   try {
     const orders = await prisma.order.findMany({ orderBy: { createdAt: 'desc' } });
@@ -234,6 +234,26 @@ app.patch('/api/orders/:id/payment', protectAdmin, async (req, res) => {
     res.status(500).json({ error: 'Erro ao confirmar pagamento', details: error.message });
   }
 });
+
+// Atualizar Avaliação do Pedido (Público - Cliente envia no final da refeição)
+// 💡 Esta era a rota que faltava!
+app.patch('/api/orders/:id/rating', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { rating } = req.body;
+    
+    const updatedOrder = await prisma.order.update({
+      where: { id },
+      data: { rating } // Guardamos no campo JSON que definiste no teu schema.prisma
+    });
+    
+    res.json(updatedOrder);
+  } catch (error) {
+    console.error("Erro ao guardar avaliação:", error);
+    res.status(500).json({ error: 'Erro ao guardar avaliação', details: error.message });
+  }
+});
+
 
 // =========================================================
 // --- ROTAS DE BANNERS PROMOCIONAIS ---

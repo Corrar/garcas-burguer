@@ -153,6 +153,11 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   useEffect(() => { if (deliveryAddress) localStorage.setItem('@burger-buddy:deliveryAddress', deliveryAddress); }, [deliveryAddress]);
   useEffect(() => { if (customer) localStorage.setItem('@burger-buddy:customer', JSON.stringify(customer)); }, [customer]);
 
+  // 💡 FUNÇÃO AUXILIAR: Pega o Token do Admin (Colocada aqui para ser usada em várias secções)
+  const getAdminToken = useCallback(() => {
+    return localStorage.getItem('@burger-buddy:adminToken') || import.meta.env.VITE_ADMIN_TOKEN || '';
+  }, []);
+
 
   // =========================================================
   // 4. FUNÇÕES DO CARRINHO
@@ -229,35 +234,50 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     return order;
   }, [cart, nextOrderNumber, orderType, tableNumber, deliveryAddress, getCartTotal]);
 
+  // --- FUNÇÕES DE STATUS CORRIGIDAS (Com token de Admin) ---
   const updateOrderStatus = useCallback((orderId: string, status: OrderStatus) => {
     setOrders(prev => prev.map(o => o.id === orderId ? { ...o, status, updatedAt: new Date() } : o));
+    
     fetch(`${API_URL}/orders/${orderId}/status`, {
-      method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status })
-    }).catch(err => console.error(err));
-  }, []);
+      method: 'PATCH', 
+      headers: { 
+        'Content-Type': 'application/json',
+        'x-admin-token': getAdminToken() 
+      }, 
+      body: JSON.stringify({ status })
+    }).catch(err => console.error("Erro ao atualizar status do pedido:", err));
+  }, [getAdminToken]);
 
   const updatePaymentStatus = useCallback((orderId: string, paymentStatus: PaymentStatus) => {
     setOrders(prev => prev.map(o => o.id === orderId ? { ...o, paymentStatus, updatedAt: new Date() } : o));
+    
     fetch(`${API_URL}/orders/${orderId}/payment`, {
-      method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ paymentStatus })
-    }).catch(err => console.error(err));
-  }, []);
+      method: 'PATCH', 
+      headers: { 
+        'Content-Type': 'application/json',
+        'x-admin-token': getAdminToken()
+      }, 
+      body: JSON.stringify({ paymentStatus })
+    }).catch(err => console.error("Erro ao atualizar pagamento:", err));
+  }, [getAdminToken]);
 
+  // --- FUNÇÃO DE AVALIAÇÃO CORRIGIDA (Envia para o servidor) ---
   const rateOrder = useCallback((orderId: string, ratings: Record<string, number>, feedback: string) => {
-    setOrders(prev => prev.map(o => o.id === orderId ? {
-      ...o, rating: { aspects: ratings, feedback, createdAt: new Date().toISOString() }
-    } : o));
+    const ratingData = { aspects: ratings, feedback, createdAt: new Date().toISOString() };
+    
+    setOrders(prev => prev.map(o => o.id === orderId ? { ...o, rating: ratingData } : o));
+
+    fetch(`${API_URL}/orders/${orderId}/rating`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ rating: ratingData })
+    }).catch(err => console.error("Erro ao enviar avaliação:", err));
   }, []);
 
 
   // =========================================================
   // 6. ADMINISTRAÇÃO E ESTATÍSTICAS (PRODUTOS, BANNERS E CONFIGURAÇÕES)
   // =========================================================
-  
-  // 💡 FUNÇÃO AUXILIAR: Pega o Token do Admin
-  const getAdminToken = () => {
-    return localStorage.getItem('@burger-buddy:adminToken') || import.meta.env.VITE_ADMIN_TOKEN || '';
-  };
 
   const addProduct = useCallback((product: Omit<Product, 'id'>) => { 
     const tempId = generateId();
@@ -285,7 +305,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       alert("⚠️ ERRO DO BANCO DE DADOS:\n\n" + err.message);
       setProducts(prev => prev.filter(p => p.id !== tempId)); 
     });
-  }, []);
+  }, [getAdminToken]);
 
   const updateProduct = useCallback((id: string, updates: Partial<Product>) => { 
     setProducts(prev => prev.map(p => p.id === id ? { ...p, ...updates } : p)); 
@@ -306,7 +326,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       console.error("Erro ao atualizar produto no servidor:", err);
       alert("⚠️ ERRO AO ATUALIZAR:\n\n" + err.message);
     });
-  }, []);
+  }, [getAdminToken]);
 
   const deleteProduct = useCallback((id: string) => { 
     setProducts(prev => prev.filter(p => p.id !== id)); 
@@ -325,7 +345,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       console.error("Erro ao apagar produto no servidor:", err);
       alert("⚠️ ERRO AO APAGAR:\n\n" + err.message);
     });
-  }, []);
+  }, [getAdminToken]);
 
   // --- Funções dos Banners Atualizadas ---
   const addPromoBanner = useCallback((banner: Omit<PromoBanner, 'id'>) => {
@@ -338,7 +358,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     })
     .then(res => res.json()).then(savedBanner => { setPromoBanners(prev => prev.map(b => b.id === tempId ? savedBanner : b)); })
     .catch(err => console.error(err));
-  }, []);
+  }, [getAdminToken]);
 
   const updatePromoBanner = useCallback((id: string, updates: Partial<PromoBanner>) => {
     setPromoBanners(prev => prev.map(b => b.id === id ? { ...b, ...updates } : b));
@@ -347,7 +367,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       headers: { 'Content-Type': 'application/json', 'x-admin-token': getAdminToken() }, 
       body: JSON.stringify(updates) 
     }).catch(err => console.error(err));
-  }, []);
+  }, [getAdminToken]);
 
   const removePromoBanner = useCallback((id: string) => {
     setPromoBanners(prev => prev.filter(b => b.id !== id));
@@ -355,14 +375,12 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       method: 'DELETE',
       headers: { 'x-admin-token': getAdminToken() }
     }).catch(err => console.error(err));
-  }, []);
+  }, [getAdminToken]);
 
-  // --- FUNÇÃO DE ATUALIZAR CONFIGURAÇÕES CORRIGIDA ---
+  // --- FUNÇÃO DE ATUALIZAR CONFIGURAÇÕES ---
   const updateSettings = useCallback((newSettings: Partial<StoreSettings>) => { 
-    // Atualiza o estado local para uma resposta imediata na UI
     setSettings(prev => ({ ...prev, ...newSettings })); 
 
-    // Envia a alteração para a base de dados
     fetch(`${API_URL}/settings`, {
       method: 'PATCH',
       headers: { 
@@ -373,7 +391,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     }).catch(err => {
       console.error("Erro ao guardar configurações na base de dados:", err);
     });
-  }, []);
+  }, [getAdminToken]);
 
   const getTodayOrders = useCallback(() => {
     const today = new Date().toDateString();

@@ -251,7 +251,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
 
   // =========================================================
-  // 6. ADMINISTRAÇÃO E ESTATÍSTICAS (PRODUTOS E BANNERS)
+  // 6. ADMINISTRAÇÃO E ESTATÍSTICAS (PRODUTOS, BANNERS E CONFIGURAÇÕES)
   // =========================================================
   
   // 💡 FUNÇÃO AUXILIAR: Pega o Token do Admin
@@ -357,7 +357,23 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     }).catch(err => console.error(err));
   }, []);
 
-  const updateSettings = useCallback((newSettings: Partial<StoreSettings>) => { setSettings(prev => ({ ...prev, ...newSettings })); }, []);
+  // --- FUNÇÃO DE ATUALIZAR CONFIGURAÇÕES CORRIGIDA ---
+  const updateSettings = useCallback((newSettings: Partial<StoreSettings>) => { 
+    // Atualiza o estado local para uma resposta imediata na UI
+    setSettings(prev => ({ ...prev, ...newSettings })); 
+
+    // Envia a alteração para a base de dados
+    fetch(`${API_URL}/settings`, {
+      method: 'PATCH',
+      headers: { 
+        'Content-Type': 'application/json',
+        'x-admin-token': getAdminToken() 
+      },
+      body: JSON.stringify(newSettings)
+    }).catch(err => {
+      console.error("Erro ao guardar configurações na base de dados:", err);
+    });
+  }, []);
 
   const getTodayOrders = useCallback(() => {
     const today = new Date().toDateString();

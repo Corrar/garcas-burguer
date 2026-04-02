@@ -2,6 +2,8 @@ import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import { PrismaClient } from '@prisma/client';
+// IMPORTAÇÃO DO NOSSO SEGURANÇA
+import { protectAdmin } from './middlewares/authMiddleware.js';
 
 dotenv.config();
 
@@ -18,7 +20,7 @@ const corsOptions = {
     callback(null, true); 
   }, 
   methods: ['GET', 'POST', 'PATCH', 'DELETE', 'OPTIONS'], 
-  allowedHeaders: ['Content-Type'], 
+  allowedHeaders: ['Content-Type', 'x-admin-token'], // Adicionamos o cabeçalho do token aqui!
   credentials: true 
 };
 
@@ -43,6 +45,7 @@ app.get('/api/health', async (req, res) => {
 // --- ROTAS DE PRODUTOS ---
 // =========================================================
 
+// LER: Público (Qualquer pessoa pode ver)
 app.get('/api/products', async (req, res) => {
   try {
     const products = await prisma.product.findMany({ where: { active: true } });
@@ -52,15 +55,14 @@ app.get('/api/products', async (req, res) => {
   }
 });
 
-// 1. Criar um NOVO produto (BLINDADO)
-app.post('/api/products', async (req, res) => {
+// 1. Criar um NOVO produto (BLINDADO - Requer Admin)
+app.post('/api/products', protectAdmin, async (req, res) => {
   try {
     const data = req.body;
     const newProduct = await prisma.product.create({
       data: {
         name: String(data.name || 'Produto Sem Nome'),
         description: String(data.description || ''),
-        // Força a conversão do preço para número, quer venha como texto ou vazio
         price: Number(data.price) || 0,
         category: String(data.category || 'burgers'),
         image: String(data.image || ''),
@@ -72,18 +74,16 @@ app.post('/api/products', async (req, res) => {
     res.status(201).json(newProduct);
   } catch (error) {
     console.error("🔥 ERRO FATAL AO CRIAR PRODUTO:", error);
-    // O detalhe do erro agora é enviado de volta ao frontend!
     res.status(500).json({ error: 'Erro interno ao criar produto', details: error.message });
   }
 });
 
-// 2. Atualizar um produto existente (BLINDADO)
-app.patch('/api/products/:id', async (req, res) => {
+// 2. Atualizar um produto existente (BLINDADO - Requer Admin)
+app.patch('/api/products/:id', protectAdmin, async (req, res) => {
   try {
     const { id } = req.params;
     const data = req.body;
     
-    // Filtramos apenas o que vem no pedido para atualizar e forçamos o tipo correto
     const updateData = {};
     if (data.name !== undefined) updateData.name = String(data.name);
     if (data.description !== undefined) updateData.description = String(data.description);
@@ -104,8 +104,8 @@ app.patch('/api/products/:id', async (req, res) => {
   }
 });
 
-// 3. Apagar um produto (Admin)
-app.delete('/api/products/:id', async (req, res) => {
+// 3. Apagar um produto (BLINDADO - Requer Admin)
+app.delete('/api/products/:id', protectAdmin, async (req, res) => {
   try {
     const { id } = req.params;
     await prisma.product.delete({
@@ -118,18 +118,10 @@ app.delete('/api/products/:id', async (req, res) => {
 });
 
 // =========================================================
-// --- ROTAS DE PEDIDOS E CONFIGURAÇÕES ---
+// --- ROTAS DE CONFIGURAÇÕES DA LOJA ---
 // =========================================================
 
-app.get('/api/orders', async (req, res) => {
-  try {
-    const orders = await prisma.order.findMany({ orderBy: { createdAt: 'desc' } });
-    res.json(orders);
-  } catch (error) {
-    res.status(500).json({ error: 'Erro ao buscar pedidos', details: error.message });
-  }
-});
-
+// LER: Público (Para a app saber se está aberta/fechada)
 app.get('/api/settings', async (req, res) => {
   try {
     const settings = await prisma.storeSettings.findUnique({ where: { id: 'singleton' } });
@@ -139,7 +131,51 @@ app.get('/api/settings', async (req, res) => {
   }
 });
 
-// Criar um NOVO pedido (Vem do telemóvel do cliente)
+// ATUALIZAR: (BLINDADO - Requer Admin)
+app.patch('/api/settings', protectAdmin, async (req, res) => {
+  try {
+    const data = req.body;
+    
+    // Atualiza ou cria se não existir (upsert)
+    const updatedSettings = await prisma.storeSettings.upsert({
+      where: { id: 'singleton' },
+      update: {
+        isOpen: data.isOpen,
+        estimatedDeliveryTime: data.estimatedDeliveryTime,
+        deliveryFee: data.deliveryFee !== undefined ? Number(data.deliveryFee) : undefined,
+        minimumOrderValue: data.minimumOrderValue !== undefined ? Number(data.minimumOrderValue) : undefined
+      },
+      create: {
+        id: 'singleton',
+        isOpen: data.isOpen !== undefined ? data.isOpen : true,
+        estimatedDeliveryTime: data.estimatedDeliveryTime || '30-40 min',
+        deliveryFee: Number(data.deliveryFee) || 5.99,
+        minimumOrderValue: Number(data.minimumOrderValue) || 0
+      }
+    });
+    
+    res.json(updatedSettings);
+  } catch (error) {
+    console.error("Erro ao salvar configurações:", error);
+    res.status(500).json({ error: 'Erro ao atualizar configurações', details: error.message });
+  }
+});
+
+// =========================================================
+// --- ROTAS DE PEDIDOS ---
+// =========================================================
+
+// LER Pedidos (Idealmente seria protegido para o Admin/Cozinha, mas mantemos aberto se já estava assim no teu design)
+app.get('/api/orders', async (req, res) => {
+  try {
+    const orders = await prisma.order.findMany({ orderBy: { createdAt: 'desc' } });
+    res.json(orders);
+  } catch (error) {
+    res.status(500).json({ error: 'Erro ao buscar pedidos', details: error.message });
+  }
+});
+
+// CRIAR um NOVO pedido (Público - Clientes enviam pedidos sem token)
 app.post('/api/orders', async (req, res) => {
   try {
     const data = req.body;
@@ -153,12 +189,12 @@ app.post('/api/orders', async (req, res) => {
         deliveryFee: data.deliveryFee,
         total: data.total,
         paymentMethod: data.paymentMethod,
-        paymentStatus: 'pending', // Nasce sempre pendente
+        paymentStatus: 'pending', 
         changeFor: data.changeFor,
         customerNotes: data.customerNotes,
         customerName: data.customerName || 'Cliente Anônimo',
         customerPhone: data.customerPhone || 'Não informado',
-        items: data.items, // Guardamos o carrinho em JSON
+        items: data.items, 
       }
     });
     
@@ -169,8 +205,8 @@ app.post('/api/orders', async (req, res) => {
   }
 });
 
-// Atualizar o Status do Pedido (Cozinha: "Preparando", "Pronto")
-app.patch('/api/orders/:id/status', async (req, res) => {
+// Atualizar Status do Pedido (BLINDADO - Requer Admin)
+app.patch('/api/orders/:id/status', protectAdmin, async (req, res) => {
   try {
     const { id } = req.params;
     const { status } = req.body;
@@ -184,8 +220,8 @@ app.patch('/api/orders/:id/status', async (req, res) => {
   }
 });
 
-// Atualizar o Status do Pagamento (Admin: "Pago")
-app.patch('/api/orders/:id/payment', async (req, res) => {
+// Atualizar Status de Pagamento (BLINDADO - Requer Admin)
+app.patch('/api/orders/:id/payment', protectAdmin, async (req, res) => {
   try {
     const { id } = req.params;
     const { paymentStatus } = req.body;
@@ -203,6 +239,7 @@ app.patch('/api/orders/:id/payment', async (req, res) => {
 // --- ROTAS DE BANNERS PROMOCIONAIS ---
 // =========================================================
 
+// LER: Público
 app.get('/api/banners', async (req, res) => {
   try {
     const banners = await prisma.promoBanner.findMany();
@@ -212,7 +249,8 @@ app.get('/api/banners', async (req, res) => {
   }
 });
 
-app.post('/api/banners', async (req, res) => {
+// CRIAR: (BLINDADO)
+app.post('/api/banners', protectAdmin, async (req, res) => {
   try {
     const newBanner = await prisma.promoBanner.create({
       data: req.body
@@ -223,7 +261,8 @@ app.post('/api/banners', async (req, res) => {
   }
 });
 
-app.patch('/api/banners/:id', async (req, res) => {
+// ATUALIZAR: (BLINDADO)
+app.patch('/api/banners/:id', protectAdmin, async (req, res) => {
   try {
     const { id } = req.params;
     const updatedBanner = await prisma.promoBanner.update({
@@ -236,7 +275,8 @@ app.patch('/api/banners/:id', async (req, res) => {
   }
 });
 
-app.delete('/api/banners/:id', async (req, res) => {
+// APAGAR: (BLINDADO)
+app.delete('/api/banners/:id', protectAdmin, async (req, res) => {
   try {
     const { id } = req.params;
     await prisma.promoBanner.delete({

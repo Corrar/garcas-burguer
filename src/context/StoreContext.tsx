@@ -153,6 +153,30 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   useEffect(() => { if (deliveryAddress) localStorage.setItem('@burger-buddy:deliveryAddress', deliveryAddress); }, [deliveryAddress]);
   useEffect(() => { if (customer) localStorage.setItem('@burger-buddy:customer', JSON.stringify(customer)); }, [customer]);
 
+  // =========================================================
+  // 3.1 POLLING - SINCRONIZAÇÃO EM TEMPO REAL
+  // =========================================================
+  useEffect(() => {
+    const syncOrders = async () => {
+      try {
+        const res = await fetch(`${API_URL}/orders`, { cache: 'no-store' });
+        if (res.ok) {
+          const fetchedOrders = await res.json();
+          setOrders(fetchedOrders.map((o: any) => ({
+            ...o,
+            createdAt: new Date(o.createdAt),
+            updatedAt: new Date(o.updatedAt)
+          })));
+        }
+      } catch (err) {
+        // Falha silenciosa para não quebrar a app se a net falhar por 1 segundo
+      }
+    };
+
+    const intervalId = setInterval(syncOrders, 10000); // Executa a cada 10 segundos
+    return () => clearInterval(intervalId);
+  }, []);
+
   // 💡 FUNÇÃO AUXILIAR: Pega o Token do Admin (Colocada aqui para ser usada em várias secções)
   const getAdminToken = useCallback(() => {
     return localStorage.getItem('@burger-buddy:adminToken') || import.meta.env.VITE_ADMIN_TOKEN || '';
@@ -187,12 +211,15 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     const subtotal = getCartTotal();
     const tempId = generateId(); 
     
+    // CORREÇÃO: Dados do cliente (nome e telefone) adicionados ao envio!
     const order: Order = {
       id: tempId,
       number: nextOrderNumber, 
       orderType,
       tableNumber: tableNumber || undefined,
       deliveryAddress: deliveryAddress || undefined,
+      customerName: customer?.name || undefined,
+      customerPhone: customer?.phone || undefined,
       items: [...cart],
       subtotal,
       deliveryFee,
@@ -232,7 +259,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     });
 
     return order;
-  }, [cart, nextOrderNumber, orderType, tableNumber, deliveryAddress, getCartTotal]);
+  }, [cart, nextOrderNumber, orderType, tableNumber, deliveryAddress, customer, getCartTotal]); // 'customer' adicionado às dependências
 
   // --- FUNÇÕES DE STATUS CORRIGIDAS (Com token de Admin) ---
   const updateOrderStatus = useCallback((orderId: string, status: OrderStatus) => {
@@ -347,7 +374,6 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     });
   }, [getAdminToken]);
 
-  // --- Funções dos Banners Atualizadas ---
   const addPromoBanner = useCallback((banner: Omit<PromoBanner, 'id'>) => {
     const tempId = generateId();
     setPromoBanners(prev => [...prev, { ...banner, id: tempId }]);
@@ -377,7 +403,6 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     }).catch(err => console.error(err));
   }, [getAdminToken]);
 
-  // --- FUNÇÃO DE ATUALIZAR CONFIGURAÇÕES ---
   const updateSettings = useCallback((newSettings: Partial<StoreSettings>) => { 
     setSettings(prev => ({ ...prev, ...newSettings })); 
 

@@ -10,6 +10,28 @@ export const getOrders = async (req, res) => {
   }
 };
 
+// 👇 NOVA FUNÇÃO ADICIONADA AQUI: Resolve o erro /api/orders/today 👇
+export const getTodayOrders = async (req, res) => {
+  try {
+    const startOfDay = new Date();
+    startOfDay.setHours(0, 0, 0, 0);
+
+    const orders = await prisma.order.findMany({
+      where: {
+        createdAt: {
+          gte: startOfDay 
+        }
+      },
+      orderBy: { createdAt: 'desc' }
+    });
+    
+    res.json(orders);
+  } catch (error) {
+    res.status(500).json({ error: 'Erro ao buscar pedidos de hoje', details: error.message });
+  }
+};
+// 👆 FIM DA NOVA FUNÇÃO 👆
+
 export const createOrder = async (req, res) => {
   try {
     const data = req.body;

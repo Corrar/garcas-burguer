@@ -1,7 +1,8 @@
 import express from 'express';
 import { protectAdmin } from '../middlewares/authMiddleware.js';
 import { 
-  getOrders, 
+  getOrders,
+  getTodayOrders, // 👈 Importamos a função que criaste no controller
   createOrder, 
   updateOrderStatus, 
   updatePaymentStatus, 
@@ -11,6 +12,10 @@ import {
 const router = express.Router();
 
 // O prefixo '/orders' será adicionado no index.js
+
+// 🚨 IMPORTANTE: Rotas específicas (como /today) devem vir ANTES das rotas com /:id se existirem
+router.get('/today', getTodayOrders); // 👈 Nova rota para os relatórios!
+
 router.get('/', getOrders);
 router.post('/', createOrder);
 

@@ -1,0 +1,62 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// --- PRODUTOS ---
+model Product {
+  id             String   @id @default(uuid())
+  name           String
+  description    String
+  price          Float
+  category       String   
+  image          String
+  popular        Boolean  @default(false)
+  customizations Json?    
+  active         Boolean  @default(true)
+  createdAt      DateTime @default(now())
+}
+
+// --- PEDIDOS ---
+model Order {
+  id              String   @id @default(uuid())
+  number          Int      @unique @default(autoincrement())
+  orderType       String   
+  tableNumber     String?
+  deliveryAddress String?  
+  subtotal        Float
+  deliveryFee     Float
+  total           Float
+  status          String   @default("pending") 
+  paymentMethod   String
+  paymentStatus   String   @default("pending") 
+  changeFor       Float?
+  customerNotes   String?
+  customerName    String?
+  customerPhone   String?
+  items           Json     
+  rating          Json?    
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+// --- CONFIGURAÇÕES DA LOJA ---
+model StoreSettings {
+  id                    String  @id @default("singleton")
+  isOpen                Boolean @default(true)
+  deliveryFee           Float   @default(5.99)
+  estimatedDeliveryTime String  @default("30-40 min")
+  minimumOrderValue     Float   @default(0)
+}
+
+// --- BANNERS ---
+model PromoBanner {
+  id       String  @id @default(uuid())
+  title    String
+  imageUrl String
+  active   Boolean @default(true)
+}

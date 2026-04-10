@@ -3,7 +3,7 @@
 import type { Product, Order, OrderStatus, PaymentStatus, StoreSettings, PromoBanner } from '@/types';
 
 // A URL mágica que aponta para o teu servidor
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
+const API_URL = import.meta.env.VITE_API_URL || 'https://burguer-api-avqk.onrender.com';
 
 // ============================================================================
 // 🛡️ INTERCEPTOR E WRAPPER DE FETCH (O CORAÇÃO DA COMUNICAÇÃO)

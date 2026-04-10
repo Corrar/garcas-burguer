@@ -11,6 +11,9 @@ export const getProducts = async (req, res) => {
 };
 
 export const createProduct = async (req, res) => {
+  // 👇 A NOSSA ESCUTA DE DEBUG ESTÁ AQUI
+  console.log("🔥 CHEGOU UM PEDIDO PARA CRIAR PRODUTO:", req.body.name);
+
   try {
     const data = req.body;
     const newProduct = await prisma.product.create({
@@ -27,6 +30,7 @@ export const createProduct = async (req, res) => {
     });
     res.status(201).json(newProduct);
   } catch (error) {
+    console.error("🚨 Erro interno no createProduct:", error);
     res.status(500).json({ error: 'Erro interno ao criar produto', details: error.message });
   }
 };

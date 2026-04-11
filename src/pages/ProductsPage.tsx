@@ -11,26 +11,42 @@ const ProductsPage = () => {
   const { products, addProduct, updateProduct, deleteProduct } = useStore();
   const [editing, setEditing] = useState<Partial<Product> & { isNew?: boolean } | null>(null);
 
-  const handleSave = () => {
+  // 1. Transformámos a função em 'async'
+  const handleSave = async () => {
     if (!editing?.name || !editing.price) {
       toast.error('Preencha nome e preço');
       return;
     }
-    if (editing.isNew) {
-      const { isNew, id, ...rest } = editing as any;
-      addProduct(rest);
-      toast.success('Produto criado!');
-    } else if (editing.id) {
-      const { isNew, ...rest } = editing as any;
-      updateProduct(editing.id, rest);
-      toast.success('Produto atualizado!');
+    
+    // 2. Usamos try...catch para apanhar erros reais
+    try {
+      if (editing.isNew) {
+        const { isNew, id, ...rest } = editing as any;
+        await addProduct(rest); // Espera o servidor confirmar
+        toast.success('Produto criado!');
+      } else if (editing.id) {
+        const { isNew, ...rest } = editing as any;
+        await updateProduct(editing.id, rest); // Espera o servidor confirmar
+        toast.success('Produto atualizado!');
+      }
+      
+      // 3. Só fecha a janela se NÃO houver erro
+      setEditing(null);
+      
+    } catch (error: any) {
+      // 4. Se falhar, mostra o erro exato que veio da tua API
+      console.error(error);
+      toast.error(`Erro: ${error.message || 'Falha ao salvar produto'}`);
     }
-    setEditing(null);
   };
 
-  const handleDelete = (id: string) => {
-    deleteProduct(id);
-    toast.success('Produto removido');
+  const handleDelete = async (id: string) => {
+    try {
+      await deleteProduct(id);
+      toast.success('Produto removido');
+    } catch (error: any) {
+      toast.error(`Erro ao remover: ${error.message}`);
+    }
   };
 
   const grouped = (['burgers', 'combos', 'sides', 'drinks', 'extras'] as Category[]).map(cat => ({

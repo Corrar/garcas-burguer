@@ -11,9 +11,16 @@ export const AdminGuard = ({ children }: { children: React.ReactNode }) => {
 
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
-    // A SENHA ESTÁ AQUI: "admin123" (Você pode mudar depois)
-    if (password === 'admin123') { 
+    
+    // 👇 MUDANÇA 1: A senha do ecrã agora é a mesma que está na Vercel (ou admin123 por padrão)
+    const correctPassword = import.meta.env.VITE_ADMIN_TOKEN || 'admin123';
+
+    if (password === correctPassword) { 
       sessionStorage.setItem('@burger-buddy:admin-auth', 'true');
+      
+      // 👇 MUDANÇA 2: A MÁGICA ABSOLUTA! Guardamos a senha para a API enviar ao Render!
+      localStorage.setItem('@burger-buddy:adminToken', password);
+      
       setIsAuthenticated(true);
     } else {
       setError(true);

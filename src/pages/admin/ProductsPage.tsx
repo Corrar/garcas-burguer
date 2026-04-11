@@ -59,8 +59,12 @@ export const ProductsPage = () => {
     setNewExtraPrice('');
   };
 
-  // 👇 CORREÇÃO 1: Transformado em async com try...catch
+  // 👇 CORREÇÃO 1: Transformado em async com try...catch + ALARME
   const handleSave = async () => {
+    // 🚨 ALARME DE DETETIVE AQUI! 🚨
+    alert("🚨 TESTE DE LIGAÇÃO: O botão Salvar foi clicado e o código novo está a rodar!");
+    console.log("Tentando salvar o produto:", editing);
+
     if (!editing?.name || editing.price === undefined) {
       toast.error('Preencha nome e preço');
       return;
@@ -75,10 +79,12 @@ export const ProductsPage = () => {
     try {
       if (finalProduct.isNew) {
         const { isNew, id, ...rest } = finalProduct as any;
+        console.log("A enviar para a API (Criar):", rest); // Registo na consola
         await addProduct(rest); // ⏳ Espera o servidor!
         toast.success('Produto adicionado ao cardápio!');
       } else if (finalProduct.id) {
         const { isNew, ...rest } = finalProduct as any;
+        console.log("A enviar para a API (Atualizar):", rest); // Registo na consola
         await updateProduct(finalProduct.id, rest); // ⏳ Espera o servidor!
         toast.success('Produto atualizado!');
       }
@@ -87,7 +93,7 @@ export const ProductsPage = () => {
       setEditing(null);
       
     } catch (error: any) {
-      console.error(error);
+      console.error("ERRO DETETADO NO CATCH:", error);
       toast.error(`Erro: ${error.message || 'Falha ao salvar produto no servidor.'}`);
     }
   };

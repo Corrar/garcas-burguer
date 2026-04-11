@@ -1,61 +1,44 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Lock } from 'lucide-react';
 
 export const AdminGuard = ({ children }: { children: React.ReactNode }) => {
-  // Verifica se o dono já digitou a senha nesta sessão
-  const [isAuthenticated, setIsAuthenticated] = useState(() => {
-    return sessionStorage.getItem('@burger-buddy:admin-auth') === 'true';
-  });
-  const [password, setPassword] = useState('');
-  const [error, setError] = useState(false);
+  // A única fonte de verdade agora é o LocalStorage
+  const [token, setToken] = useState(() => localStorage.getItem('@burger-buddy:adminToken') || '');
+  const [input, setInput] = useState('');
+
+  // Escuta se o servidor nos expulsou (Erro 401)
+  useEffect(() => {
+    const handleLogout = () => setToken('');
+    window.addEventListener('admin-logout', handleLogout);
+    return () => window.removeEventListener('admin-logout', handleLogout);
+  }, []);
 
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
+    if (!input.trim()) return;
     
-    // 👇 A MÁGICA ACONTECE AQUI: Ele vai buscar a senha à tua Vercel
-    const correctPassword = import.meta.env.VITE_ADMIN_TOKEN;
-
-    if (password === correctPassword) { 
-      sessionStorage.setItem('@burger-buddy:admin-auth', 'true');
-      
-      // 👇 MÁGICA 2: Ele guarda a senha para o teu api.ts a poder usar!
-      localStorage.setItem('@burger-buddy:adminToken', password);
-      
-      setIsAuthenticated(true);
-    } else {
-      setError(true);
-    }
+    // Guarda a senha e avança. O backend é que vai decidir se a senha presta ou não!
+    localStorage.setItem('@burger-buddy:adminToken', input.trim());
+    setToken(input.trim());
   };
 
-  // Se já tiver a senha correta, mostra o painel de administração
-  if (isAuthenticated) return <>{children}</>;
+  // Se tem token (senha digitada), mostra o painel
+  if (token) return <>{children}</>;
 
-  // Se não tiver, mostra a tela de bloqueio
+  // Se não tem token, mostra um design super minimalista e discreto
   return (
-    <div className="min-h-[100dvh] bg-background flex flex-col items-center justify-center p-4 relative z-[100]">
-      <div className="bg-card border border-border/50 p-8 rounded-3xl shadow-2xl max-w-sm w-full text-center">
-        <div className="w-16 h-16 bg-primary/10 text-primary rounded-full flex items-center justify-center mx-auto mb-6">
-          <Lock className="w-8 h-8" />
-        </div>
-        <h2 className="font-display text-2xl font-bold mb-2">Acesso Restrito</h2>
-        <p className="text-muted-foreground text-sm mb-8">Área exclusiva para a gestão do Garça's Burguer.</p>
-        
-        <form onSubmit={handleLogin} className="space-y-4">
-          <div>
-            <input
-              type="password"
-              placeholder="Digite a Senha"
-              value={password}
-              onChange={(e) => { setPassword(e.target.value); setError(false); }}
-              className={`w-full bg-secondary border ${error ? 'border-destructive' : 'border-transparent'} focus:border-primary rounded-xl p-4 text-center text-lg font-bold tracking-widest`}
-            />
-            {error && <p className="text-destructive text-sm mt-2 font-medium">Senha incorreta!</p>}
-          </div>
-          <button type="submit" className="w-full bg-primary text-primary-foreground py-4 rounded-xl font-bold text-lg active:scale-[0.98] transition-all shadow-lg shadow-primary/30">
-            Acessar Sistema
-          </button>
-        </form>
-      </div>
+    <div className="min-h-screen bg-background flex items-center justify-center p-4 relative z-[100]">
+      <form onSubmit={handleLogin} className="relative group">
+        <Lock className="absolute left-0 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground group-focus-within:text-primary transition-colors" />
+        <input
+          type="password"
+          value={input}
+          onChange={(e) => setInput(e.target.value)}
+          placeholder="Acesso restrito..."
+          className="w-64 pl-8 pr-4 py-2 bg-transparent border-b border-border/30 focus:border-primary outline-none text-center tracking-[0.3em] text-sm text-foreground transition-colors"
+          autoFocus
+        />
+      </form>
     </div>
   );
 };

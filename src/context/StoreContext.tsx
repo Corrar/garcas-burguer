@@ -54,9 +54,13 @@ interface StoreContextType extends StoreState {
   updateOrderStatus: (orderId: string, status: OrderStatus) => void;
   updatePaymentStatus: (orderId: string, status: PaymentStatus) => void;
   rateOrder: (orderId: string, ratings: Record<string, number>, feedback: string) => void;
-  addProduct: (product: Omit<Product, 'id'>) => void;
-  updateProduct: (id: string, updates: Partial<Product>) => void;
-  deleteProduct: (id: string) => void;
+  
+  // 👇 ALTERAÇÃO 1: Adicionado Promise<any> para permitir o uso de await no frontend
+  addProduct: (product: Omit<Product, 'id'>) => Promise<any>;
+  updateProduct: (id: string, updates: Partial<Product>) => Promise<any>;
+  deleteProduct: (id: string) => Promise<any>;
+  // 👆 FIM DA ALTERAÇÃO 1
+
   getCartTotal: () => number;
   getTodayOrders: () => Order[];
   getTodayRevenue: () => number;
@@ -242,13 +246,20 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   // =========================================================
 
   const addProductMut = useMutation({ mutationFn: api.createProduct, onSuccess: () => queryClient.invalidateQueries({ queryKey: ['products'] }), onError: (err: any) => alert(`Erro:\n${err.message}`) });
-  const addProduct = (p: Omit<Product, 'id'>) => addProductMut.mutate(p);
+  
+  // 👇 ALTERAÇÃO 2: Trocado .mutate para .mutateAsync
+  const addProduct = (p: Omit<Product, 'id'>) => addProductMut.mutateAsync(p);
 
   const updateProductMut = useMutation({ mutationFn: ({ id, updates }: { id: string, updates: Partial<Product> }) => api.updateProduct(id, updates), onSuccess: () => queryClient.invalidateQueries({ queryKey: ['products'] }), onError: (err: any) => alert(`Erro:\n${err.message}`) });
-  const updateProduct = (id: string, updates: Partial<Product>) => updateProductMut.mutate({ id, updates });
+  
+  // 👇 ALTERAÇÃO 2
+  const updateProduct = (id: string, updates: Partial<Product>) => updateProductMut.mutateAsync({ id, updates });
 
   const deleteProductMut = useMutation({ mutationFn: api.deleteProduct, onSuccess: () => queryClient.invalidateQueries({ queryKey: ['products'] }), onError: (err: any) => alert(`Erro:\n${err.message}`) });
-  const deleteProduct = (id: string) => deleteProductMut.mutate(id);
+  
+  // 👇 ALTERAÇÃO 2
+  const deleteProduct = (id: string) => deleteProductMut.mutateAsync(id);
+  // 👆 FIM DA ALTERAÇÃO 2
 
   const updateSettingsMut = useMutation({ mutationFn: api.updateSettings, onSuccess: () => queryClient.invalidateQueries({ queryKey: ['settings'] }), onError: (err: any) => alert(`Erro:\n${err.message}`) });
   const updateSettings = (s: Partial<StoreSettings>) => updateSettingsMut.mutate(s);

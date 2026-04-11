@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Shield, Lock } from 'lucide-react'; // Sem o Grape, como vimos!
+import { Shield, Lock } from 'lucide-react';
 import { toast } from 'sonner';
 
 const ProfilePage = () => {
@@ -16,19 +16,24 @@ const ProfilePage = () => {
   // Função para validar o login do gerente
   const handleAdminLogin = (e: React.FormEvent) => {
     e.preventDefault();
-    if (adminPassword === 'admin123') {
-      toast.success('Acesso Administrativo concedido!');
-      navigate('/admin/dashboard');
-    } else {
-      toast.error('Senha incorreta! Acesso negado.');
-      setAdminPassword('');
+    
+    if (!adminPassword.trim()) {
+      toast.error('Digite a senha de acesso.');
+      return;
     }
+
+    // 👇 O FIM DO CONFLITO: A Vercel/Frontend já não decide se a senha está certa.
+    // Guardamos o que foi digitado no "Cofre" do navegador e mandamos o utilizador para o painel.
+    // Se a senha estiver errada, o Render (api.ts) vai bloqueá-lo e expulsá-lo automaticamente!
+    localStorage.setItem('@burger-buddy:adminToken', adminPassword.trim());
+    
+    toast.success('Verificando credenciais...');
+    
+    // Navega para o painel. (Podes mudar para '/admin/produtos' se a tua rota for essa)
+    navigate('/admin/dashboard'); 
   };
 
   return (
-    // CORREÇÃO AQUI: 
-    // Usamos flex-1, w-full, h-full para forçar o preenchimento total do espaço
-    // que o ClientLayout disponibiliza, e mantemos o bg-background.
     <div className="flex-1 w-full h-full min-h-[100dvh] bg-background">
       <div className="p-6 max-w-md mx-auto space-y-6 pb-32 animate-in fade-in">
         
@@ -38,7 +43,7 @@ const ProfilePage = () => {
           <p className="text-muted-foreground">Sincronize ou gerencie sua conta</p>
         </div>
 
-        {/* Cartão 1: Acesso do Cliente - Foco no GOOGLE LOGIN */}
+        {/* Cartão: Acesso do Cliente - Foco no GOOGLE LOGIN */}
         <div className="bg-card border border-border rounded-xl p-6 shadow-sm">
           <div className="text-center mb-6">
             <h2 className="text-lg font-bold">Sou Cliente</h2>
@@ -59,58 +64,54 @@ const ProfilePage = () => {
           </button>
         </div>
 
-        {/* Cartão 2: Acesso do Gerente (Administrador) */}
-        <div className="bg-card border border-border rounded-xl p-5 shadow-sm mt-8 opacity-70 hover:opacity-100 transition-opacity">
-          <div className="flex items-center gap-4 mb-4">
-            <div className="p-3 bg-destructive/10 rounded-full text-destructive">
-              <Shield className="w-6 h-6" />
+        {/* SECÇÃO DISCRETA DO GERENTE (MODO FURTIVO) */}
+        <div className="pt-8">
+          {!showAdminLogin ? (
+            <div className="flex justify-center">
+              <button 
+                onClick={() => setShowAdminLogin(true)}
+                className="p-3 text-muted-foreground/30 hover:text-primary transition-colors rounded-full hover:bg-secondary/50"
+                title="Acesso Restrito"
+              >
+                {/* Ícone discreto no fundo da página */}
+                <Shield className="w-5 h-5" />
+              </button>
             </div>
-            <div>
-              <h2 className="text-lg font-bold">Acesso Restrito</h2>
-              <p className="text-sm text-muted-foreground">Apenas para a equipa do restaurante</p>
-            </div>
-          </div>
-
-          {showAdminLogin ? (
-            <form onSubmit={handleAdminLogin} className="space-y-4 animate-in fade-in slide-in-from-top-2">
-              <div className="space-y-2">
-                <label className="text-sm font-medium flex items-center gap-2 text-muted-foreground">
-                  <Lock className="w-4 h-4" /> Senha Administrativa
-                </label>
-                <input
-                  type="password"
-                  value={adminPassword}
-                  onChange={(e) => setAdminPassword(e.target.value)}
-                  placeholder="Digite a senha..."
-                  className="w-full bg-background border border-border rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-primary transition-all"
-                  autoFocus
-                />
+          ) : (
+            <form onSubmit={handleAdminLogin} className="space-y-4 animate-in fade-in slide-in-from-bottom-4 bg-card border border-border/50 p-5 rounded-2xl shadow-sm">
+              <div className="text-center mb-4">
+                <Lock className="w-5 h-5 mx-auto mb-2 text-primary" />
+                <h3 className="text-sm font-bold">Acesso Restrito</h3>
               </div>
-              <div className="flex gap-2">
+              
+              <input
+                type="password"
+                value={adminPassword}
+                onChange={(e) => setAdminPassword(e.target.value)}
+                placeholder="Senha do sistema..."
+                className="w-full bg-background border border-border/50 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-primary transition-all text-center tracking-widest"
+                autoFocus
+              />
+              
+              <div className="flex gap-2 pt-2">
                 <button
                   type="button"
                   onClick={() => setShowAdminLogin(false)}
-                  className="flex-1 bg-secondary text-secondary-foreground py-3 rounded-lg font-medium hover:bg-secondary/80 transition-colors"
+                  className="flex-1 bg-secondary text-secondary-foreground py-2.5 rounded-xl text-sm font-medium hover:bg-secondary/80 transition-colors"
                 >
                   Cancelar
                 </button>
                 <button
                   type="submit"
-                  className="flex-1 bg-primary text-primary-foreground py-3 rounded-lg font-medium hover:bg-primary/90 transition-colors shadow-sm"
+                  className="flex-1 bg-primary text-primary-foreground py-2.5 rounded-xl text-sm font-medium hover:bg-primary/90 transition-colors shadow-sm"
                 >
-                  Acessar
+                  Entrar
                 </button>
               </div>
             </form>
-          ) : (
-            <button 
-              onClick={() => setShowAdminLogin(true)}
-              className="w-full flex items-center justify-center gap-2 border border-border text-foreground py-3 rounded-lg font-medium hover:bg-secondary transition-colors"
-            >
-              Sou Gerente
-            </button>
           )}
         </div>
+
       </div>
     </div>
   );

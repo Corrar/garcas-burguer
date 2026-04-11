@@ -9,9 +9,9 @@ const API_URL = import.meta.env.VITE_API_URL || 'https://burguer-api-avqk.onrend
 // 🛡️ INTERCEPTOR E WRAPPER DE FETCH (O CORAÇÃO DA COMUNICAÇÃO)
 // ============================================================================
 
-// Pega o token de Admin automaticamente para injetar nas rotas protegidas
+// Pega APENAS a senha que tu digitaste no ecrã discreto
 const getAdminToken = () => {
-  return localStorage.getItem('@burger-buddy:adminToken') || import.meta.env.VITE_ADMIN_TOKEN || '';
+  return localStorage.getItem('@burger-buddy:adminToken') || '';
 };
 
 // Função centralizadora. Lida com JSON, Tokens e Erros de forma automática!
@@ -25,6 +25,13 @@ const fetchAPI = async (endpoint: string, options: RequestInit = {}) => {
   try {
     const response = await fetch(`${API_URL}${endpoint}`, { ...options, headers });
     
+    // 👇 A GRANDE JOGADA: Se a senha estiver errada, o servidor manda 401!
+    if (response.status === 401) {
+      localStorage.removeItem('@burger-buddy:adminToken'); // Apaga a senha falsa
+      window.dispatchEvent(new Event('admin-logout')); // Acorda o ecrã do cadeado
+      throw new Error('Senha incorreta! O acesso foi bloqueado.');
+    }
+
     // Prevenção para respostas vazias (ex: DELETE 204 No Content)
     if (response.status === 204) return null;
 

@@ -59,7 +59,8 @@ export const ProductsPage = () => {
     setNewExtraPrice('');
   };
 
-  const handleSave = () => {
+  // 👇 CORREÇÃO 1: Transformado em async com try...catch
+  const handleSave = async () => {
     if (!editing?.name || editing.price === undefined) {
       toast.error('Preencha nome e preço');
       return;
@@ -71,23 +72,37 @@ export const ProductsPage = () => {
       customizations: [...removableIngredients, ...selectedExtras] 
     };
 
-    if (finalProduct.isNew) {
-      const { isNew, id, ...rest } = finalProduct as any;
-      addProduct(rest);
-      toast.success('Produto adicionado ao cardápio!');
-    } else if (finalProduct.id) {
-      const { isNew, ...rest } = finalProduct as any;
-      updateProduct(finalProduct.id, rest);
-      toast.success('Produto atualizado!');
+    try {
+      if (finalProduct.isNew) {
+        const { isNew, id, ...rest } = finalProduct as any;
+        await addProduct(rest); // ⏳ Espera o servidor!
+        toast.success('Produto adicionado ao cardápio!');
+      } else if (finalProduct.id) {
+        const { isNew, ...rest } = finalProduct as any;
+        await updateProduct(finalProduct.id, rest); // ⏳ Espera o servidor!
+        toast.success('Produto atualizado!');
+      }
+      
+      // Só fecha se gravar no servidor
+      setEditing(null);
+      
+    } catch (error: any) {
+      console.error(error);
+      toast.error(`Erro: ${error.message || 'Falha ao salvar produto no servidor.'}`);
     }
-    setEditing(null);
   };
 
-  const confirmDelete = () => {
+  // 👇 CORREÇÃO 2: Transformado em async com try...catch
+  const confirmDelete = async () => {
     if (productToDelete) {
-      deleteProduct(productToDelete.id);
-      toast.success(`${productToDelete.name} foi removido.`);
-      setProductToDelete(null);
+      try {
+        await deleteProduct(productToDelete.id); // ⏳ Espera o servidor!
+        toast.success(`${productToDelete.name} foi removido.`);
+        setProductToDelete(null);
+      } catch (error: any) {
+        console.error(error);
+        toast.error(`Erro: ${error.message || 'Falha ao excluir produto.'}`);
+      }
     }
   };
 
@@ -110,8 +125,8 @@ export const ProductsPage = () => {
     );
   };
 
-  // NOVO: Criação rápida de um adicional pago sem fechar o modal atual
-  const handleCreateQuickExtra = () => {
+  // 👇 CORREÇÃO 3: Adicionado async e try...catch para a criação rápida
+  const handleCreateQuickExtra = async () => {
     if (!newExtraName.trim()) {
       toast.error('Escreva o nome do adicional.');
       return;
@@ -127,19 +142,24 @@ export const ProductsPage = () => {
       return;
     }
 
-    addProduct({
-      name: newExtraName.trim(),
-      price: parsedPrice,
-      category: 'extras',
-      description: 'Item adicional',
-      image: '',
-      customizations: [],
-    });
+    try {
+      await addProduct({ // ⏳ Espera o servidor gravar o novo extra
+        name: newExtraName.trim(),
+        price: parsedPrice,
+        category: 'extras',
+        description: 'Item adicional',
+        image: '',
+        customizations: [],
+      });
 
-    setSelectedExtras(prev => [...prev, newExtraName.trim()]);
-    setNewExtraName('');
-    setNewExtraPrice('');
-    toast.success(`${newExtraName} adicionado!`);
+      setSelectedExtras(prev => [...prev, newExtraName.trim()]);
+      setNewExtraName('');
+      setNewExtraPrice('');
+      toast.success(`${newExtraName} adicionado!`);
+    } catch (error: any) {
+      console.error(error);
+      toast.error(`Erro: ${error.message || 'Falha ao gravar adicional.'}`);
+    }
   };
 
   // Filtragem
